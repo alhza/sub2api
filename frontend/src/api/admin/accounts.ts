@@ -408,6 +408,17 @@ export async function getAvailableModels(id: number): Promise<ClaudeModel[]> {
   return data
 }
 
+export interface FetchUpstreamModelsRequest {
+  platform: 'openai' | 'sora'
+  base_url: string
+  api_key: string
+}
+
+export async function fetchUpstreamModels(payload: FetchUpstreamModelsRequest): Promise<string[]> {
+  const { data } = await apiClient.post<{ models: string[] }>('/admin/accounts/fetch-models', payload)
+  return data.models
+}
+
 export interface CRSPreviewAccount {
   crs_account_id: string
   kind: string
@@ -578,6 +589,7 @@ export const accountsAPI = {
   resetTempUnschedulable,
   setSchedulable,
   getAvailableModels,
+  fetchUpstreamModels,
   generateAuthUrl,
   exchangeCode,
   refreshOpenAIToken,

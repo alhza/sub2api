@@ -895,51 +895,54 @@
         </div>
       </div>
 
-      <!-- API Key input (only for apikey type, excluding Antigravity which has its own fields) -->
-      <div v-if="form.type === 'apikey' && form.platform !== 'antigravity'" class="space-y-4">
-        <div>
-          <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
-          <input
-            v-model="apiKeyBaseUrl"
-            type="text"
-            class="input"
-            :placeholder="
-              form.platform === 'openai' || form.platform === 'sora'
-                ? 'https://api.openai.com'
-                : form.platform === 'gemini'
-                  ? 'https://generativelanguage.googleapis.com'
-                  : 'https://api.anthropic.com'
-            "
-          />
-          <p class="input-hint">{{ form.platform === 'sora' ? t('admin.accounts.soraUpstreamBaseUrlHint') : baseUrlHint }}</p>
-        </div>
-        <div>
-          <label class="input-label">{{ t('admin.accounts.apiKeyRequired') }}</label>
-          <input
-            v-model="apiKeyValue"
-            type="password"
-            required
-            class="input font-mono"
-            :placeholder="
-              form.platform === 'openai'
-                ? 'sk-proj-...'
-                : form.platform === 'gemini'
-                  ? 'AIza...'
-                  : 'sk-ant-...'
-            "
-          />
-          <p class="input-hint">{{ apiKeyHint }}</p>
-        </div>
+      <!-- General model restriction setup (excluding Antigravity which has dedicated config) -->
+      <div v-if="form.platform !== 'antigravity'" class="space-y-4">
+        <!-- API Key specific inputs -->
+        <template v-if="form.type === 'apikey'">
+          <div>
+            <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
+            <input
+              v-model="apiKeyBaseUrl"
+              type="text"
+              class="input"
+              :placeholder="
+                form.platform === 'openai' || form.platform === 'sora'
+                  ? 'https://api.openai.com'
+                  : form.platform === 'gemini'
+                    ? 'https://generativelanguage.googleapis.com'
+                    : 'https://api.anthropic.com'
+              "
+            />
+            <p class="input-hint">{{ form.platform === 'sora' ? t('admin.accounts.soraUpstreamBaseUrlHint') : baseUrlHint }}</p>
+          </div>
+          <div>
+            <label class="input-label">{{ t('admin.accounts.apiKeyRequired') }}</label>
+            <input
+              v-model="apiKeyValue"
+              type="password"
+              required
+              class="input font-mono"
+              :placeholder="
+                form.platform === 'openai'
+                  ? 'sk-proj-...'
+                  : form.platform === 'gemini'
+                    ? 'AIza...'
+                    : 'sk-ant-...'
+              "
+            />
+            <p class="input-hint">{{ apiKeyHint }}</p>
+          </div>
 
-        <!-- Gemini API Key tier selection -->
-        <div v-if="form.platform === 'gemini'">
-          <label class="input-label">{{ t('admin.accounts.gemini.tier.label') }}</label>
-          <select v-model="geminiTierAIStudio" class="input">
-            <option value="aistudio_free">{{ t('admin.accounts.gemini.tier.aiStudio.free') }}</option>
-            <option value="aistudio_paid">{{ t('admin.accounts.gemini.tier.aiStudio.paid') }}</option>
-          </select>
-          <p class="input-hint">{{ t('admin.accounts.gemini.tier.aiStudioHint') }}</p>
-        </div>
+          <!-- Gemini API Key tier selection -->
+          <div v-if="form.platform === 'gemini'">
+            <label class="input-label">{{ t('admin.accounts.gemini.tier.label') }}</label>
+            <select v-model="geminiTierAIStudio" class="input">
+              <option value="aistudio_free">{{ t('admin.accounts.gemini.tier.aiStudio.free') }}</option>
+              <option value="aistudio_paid">{{ t('admin.accounts.gemini.tier.aiStudio.paid') }}</option>
+            </select>
+            <p class="input-hint">{{ t('admin.accounts.gemini.tier.aiStudioHint') }}</p>
+          </div>
+        </template>
 
         <!-- Model Restriction Section (Antigravity 已在上层条件排除) -->
         <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
@@ -1009,6 +1012,32 @@
               </button>
             </div>
 
+            <div
+              v-if="showFetchUpstreamModelsButton"
+              class="mb-3 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20"
+            >
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  @click="handleFetchUpstreamModels"
+                  :disabled="!canFetchUpstreamModels || upstreamModelsLoading"
+                  :class="[
+                    'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                    canFetchUpstreamModels && !upstreamModelsLoading
+                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60'
+                      : 'cursor-not-allowed bg-gray-100 text-gray-400 dark:bg-dark-600 dark:text-gray-500'
+                  ]"
+                >
+                  {{ upstreamModelsLoading
+                    ? t('admin.accounts.fetchingUpstreamModels')
+                    : t('admin.accounts.fetchUpstreamModels') }}
+                </button>
+                <p class="text-xs text-blue-700 dark:text-blue-300">
+                  {{ t('admin.accounts.fetchUpstreamModelsHint') }}
+                </p>
+              </div>
+            </div>
+
             <!-- Whitelist Mode -->
             <div v-if="modelRestrictionMode === 'whitelist'">
               <ModelWhitelistSelector v-model="allowedModels" :platform="form.platform" />
@@ -1046,47 +1075,61 @@
               <div
                 v-for="(mapping, index) in modelMappings"
                 :key="getModelMappingKey(mapping)"
-                class="flex items-center gap-2"
+                class="space-y-1"
               >
-                <input
-                  v-model="mapping.from"
-                  type="text"
-                  class="input flex-1"
-                  :placeholder="t('admin.accounts.requestModel')"
-                />
-                <svg
-                  class="h-4 w-4 flex-shrink-0 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M14 5l7 7m0 0l-7 7m7-7H3"
+                <div class="flex items-center gap-2">
+                  <input
+                    v-model="mapping.from"
+                    type="text"
+                    :class="[
+                      'input flex-1',
+                      !isValidWildcardPattern(mapping.from) ? 'border-red-500 dark:border-red-500' : ''
+                    ]"
+                    :placeholder="t('admin.accounts.requestModel')"
                   />
-                </svg>
-                <input
-                  v-model="mapping.to"
-                  type="text"
-                  class="input flex-1"
-                  :placeholder="t('admin.accounts.actualModel')"
-                />
-                <button
-                  type="button"
-                  @click="removeModelMapping(index)"
-                  class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-                >
-                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg
+                    class="h-4 w-4 flex-shrink-0 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
                     <path
+                      stroke-width="2"
                       stroke-linecap="round"
                       stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      d="M14 5l7 7m0 0l-7 7m7-7H3"
                     />
                   </svg>
-                </button>
+                  <input
+                    v-model="mapping.to"
+                    type="text"
+                    :class="[
+                      'input flex-1',
+                      mapping.to.includes('*') ? 'border-red-500 dark:border-red-500' : ''
+                    ]"
+                    :placeholder="t('admin.accounts.actualModel')"
+                  />
+                  <button
+                    type="button"
+                    @click="removeModelMapping(index)"
+                    class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                  >
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <p v-if="!isValidWildcardPattern(mapping.from)" class="text-xs text-red-500">
+                  {{ t('admin.accounts.wildcardOnlyAtEnd') }}
+                </p>
+                <p v-if="mapping.to.includes('*')" class="text-xs text-red-500">
+                  {{ t('admin.accounts.targetNoWildcard') }}
+                </p>
               </div>
             </div>
 
@@ -1128,7 +1171,7 @@
         </div>
 
         <!-- Custom Error Codes Section -->
-        <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div v-if="form.type === 'apikey'" class="border-t border-gray-200 pt-4 dark:border-dark-600">
           <div class="mb-3 flex items-center justify-between">
             <div>
               <label class="input-label mb-0">{{ t('admin.accounts.customErrorCodes') }}</label>
@@ -2283,11 +2326,8 @@ import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import {
-  claudeModels,
   getPresetMappingsByPlatform,
-  getModelsByPlatform,
   commonErrorCodes,
-  buildModelMappingObject,
   fetchAntigravityDefaultMappings,
   isValidWildcardPattern
 } from '@/composables/useModelWhitelist'
@@ -2431,6 +2471,8 @@ interface TempUnschedRuleForm {
   description: string
 }
 
+const defaultOpenAIBaseURL = 'https://api.openai.com'
+
 // State
 const step = ref(1)
 const submitting = ref(false)
@@ -2441,6 +2483,7 @@ const apiKeyValue = ref('')
 const modelMappings = ref<ModelMapping[]>([])
 const modelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
 const allowedModels = ref<string[]>([])
+const upstreamModelsLoading = ref(false)
 const customErrorCodesEnabled = ref(false)
 const selectedErrorCodes = ref<number[]>([])
 const customErrorCodeInput = ref<number | null>(null)
@@ -2536,6 +2579,24 @@ const openaiResponsesWebSocketV2Mode = computed({
 
 const isOpenAIModelRestrictionDisabled = computed(() =>
   form.platform === 'openai' && openaiPassthroughEnabled.value
+)
+
+const resolvedUpstreamBaseUrl = computed(() => {
+  const baseUrl = apiKeyBaseUrl.value.trim()
+  if (baseUrl) return baseUrl
+  return form.platform === 'openai' ? defaultOpenAIBaseURL : ''
+})
+
+const showFetchUpstreamModelsButton = computed(() =>
+  (form.platform === 'openai' || form.platform === 'sora') &&
+  form.type === 'apikey' &&
+  !isOpenAIModelRestrictionDisabled.value
+)
+
+const canFetchUpstreamModels = computed(() =>
+  showFetchUpstreamModelsButton.value &&
+  !!apiKeyValue.value.trim() &&
+  !!resolvedUpstreamBaseUrl.value
 )
 
 const mixedChannelWarningMessageText = computed(() => {
@@ -2645,8 +2706,6 @@ watch(
   () => props.show,
   (newVal) => {
     if (newVal) {
-      // Modal opened - fill related models
-      allowedModels.value = [...getModelsByPlatform(form.platform)]
       // Antigravity: 默认使用映射模式并填充默认映射
       if (form.platform === 'antigravity') {
         antigravityModelRestrictionMode.value = 'mapping'
@@ -2695,7 +2754,7 @@ watch(
     // Reset base URL based on platform
     apiKeyBaseUrl.value =
       (newPlatform === 'openai' || newPlatform === 'sora')
-        ? 'https://api.openai.com'
+        ? defaultOpenAIBaseURL
         : newPlatform === 'gemini'
           ? 'https://generativelanguage.googleapis.com'
           : 'https://api.anthropic.com'
@@ -2782,16 +2841,6 @@ const handleSelectGeminiOAuthType = (oauthType: 'code_assist' | 'google_one' | '
   geminiOAuthType.value = oauthType
 }
 
-// Auto-fill related models when switching to whitelist mode or changing platform
-watch(
-  [modelRestrictionMode, () => form.platform],
-  ([newMode]) => {
-    if (newMode === 'whitelist') {
-      allowedModels.value = [...getModelsByPlatform(form.platform)]
-    }
-  }
-)
-
 watch(
   [antigravityModelRestrictionMode, () => form.platform],
   ([, platform]) => {
@@ -2800,6 +2849,89 @@ watch(
     // 如果需要快速填充常用模型，可在组件内点“填充相关模型”。
   }
 )
+
+interface ModelMappingResolveResult {
+  valid: boolean
+  mapping: Record<string, string> | null
+}
+
+const buildWhitelistModelMapping = (models: string[]): ModelMappingResolveResult => {
+  const mapping: Record<string, string> = {}
+  for (let i = 0; i < models.length; i++) {
+    const normalized = models[i].trim()
+    if (!normalized) continue
+    if (normalized.includes('*')) {
+      appStore.showError(
+        t('admin.accounts.whitelistWildcardNotSupported', { line: i + 1, model: normalized })
+      )
+      return { valid: false, mapping: null }
+    }
+    mapping[normalized] = normalized
+  }
+  return { valid: true, mapping: Object.keys(mapping).length > 0 ? mapping : null }
+}
+
+const buildStrictModelMappings = (rows: ModelMapping[]): ModelMappingResolveResult => {
+  const mapping: Record<string, string> = {}
+  const seen = new Set<string>()
+  for (let i = 0; i < rows.length; i++) {
+    const from = rows[i].from.trim()
+    const to = rows[i].to.trim()
+    if (!from && !to) continue
+    if (!from || !to) {
+      appStore.showError(t('admin.accounts.mappingRowIncomplete', { line: i + 1 }))
+      return { valid: false, mapping: null }
+    }
+    if (!isValidWildcardPattern(from)) {
+      appStore.showError(t('admin.accounts.wildcardOnlyAtEndRow', { line: i + 1 }))
+      return { valid: false, mapping: null }
+    }
+    if (to.includes('*')) {
+      appStore.showError(t('admin.accounts.targetNoWildcardRow', { line: i + 1 }))
+      return { valid: false, mapping: null }
+    }
+    if (seen.has(from)) {
+      appStore.showError(t('admin.accounts.mappingDuplicateFromRow', { line: i + 1, model: from }))
+      return { valid: false, mapping: null }
+    }
+    seen.add(from)
+    mapping[from] = to
+  }
+  return { valid: true, mapping: Object.keys(mapping).length > 0 ? mapping : null }
+}
+
+const resolveModelMappingForPlatform = (platform: AccountPlatform): ModelMappingResolveResult => {
+  if (platform === 'antigravity') {
+    return buildStrictModelMappings(antigravityModelMappings.value)
+  }
+  if (platform === 'openai' && openaiPassthroughEnabled.value) {
+    return { valid: true, mapping: null }
+  }
+  if (modelRestrictionMode.value === 'whitelist') {
+    return buildWhitelistModelMapping(allowedModels.value)
+  }
+  return buildStrictModelMappings(modelMappings.value)
+}
+
+const applyResolvedModelMapping = (
+  credentials: Record<string, unknown>,
+  mapping: Record<string, string> | null
+) => {
+  if (mapping) {
+    credentials.model_mapping = mapping
+    return
+  }
+  delete credentials.model_mapping
+}
+
+const applyPlatformModelMapping = (platform: AccountPlatform, credentials: Record<string, unknown>): boolean => {
+  const result = resolveModelMappingForPlatform(platform)
+  if (!result.valid) {
+    return false
+  }
+  applyResolvedModelMapping(credentials, result.mapping)
+  return true
+}
 
 // Model mapping helpers
 const addModelMapping = () => {
@@ -2816,6 +2948,84 @@ const addPresetMapping = (from: string, to: string) => {
     return
   }
   modelMappings.value.push({ from, to })
+}
+
+const mergeFetchedModelsIntoWhitelist = (models: string[]) => {
+  const merged = new Set(allowedModels.value.map((model) => model.trim()).filter(Boolean))
+  for (const model of models) {
+    const normalized = model.trim()
+    if (normalized) {
+      merged.add(normalized)
+    }
+  }
+  allowedModels.value = [...merged]
+}
+
+const mergeFetchedModelsIntoMappings = (models: string[]) => {
+  const existingMappings = new Set(modelMappings.value.map((mapping) => mapping.from.trim()).filter(Boolean))
+  for (const model of models) {
+    const normalized = model.trim()
+    if (!normalized || existingMappings.has(normalized)) {
+      continue
+    }
+    modelMappings.value.push({ from: normalized, to: normalized })
+    existingMappings.add(normalized)
+  }
+}
+
+const getUpstreamModelsErrorMessage = (error: unknown): string => {
+  const apiError = error as {
+    message?: string
+    response?: {
+      data?: {
+        message?: string
+        detail?: string
+      }
+    }
+  }
+  return (
+    apiError.response?.data?.message ||
+    apiError.response?.data?.detail ||
+    apiError.message ||
+    t('admin.accounts.fetchUpstreamModelsFailed')
+  )
+}
+
+const handleFetchUpstreamModels = async () => {
+  if (!apiKeyValue.value.trim()) {
+    appStore.showError(t('admin.accounts.pleaseEnterApiKey'))
+    return
+  }
+  if (!resolvedUpstreamBaseUrl.value) {
+    appStore.showError(t('admin.accounts.soraBaseUrlRequired'))
+    return
+  }
+  if (form.platform !== 'openai' && form.platform !== 'sora') {
+    return
+  }
+
+  upstreamModelsLoading.value = true
+  try {
+    const models = await adminAPI.accounts.fetchUpstreamModels({
+      platform: form.platform,
+      base_url: resolvedUpstreamBaseUrl.value,
+      api_key: apiKeyValue.value.trim()
+    })
+    if (models.length === 0) {
+      appStore.showError(t('admin.accounts.noUpstreamModelsFound'))
+      return
+    }
+    if (modelRestrictionMode.value === 'whitelist') {
+      mergeFetchedModelsIntoWhitelist(models)
+    } else {
+      mergeFetchedModelsIntoMappings(models)
+    }
+    appStore.showSuccess(t('admin.accounts.fetchUpstreamModelsSuccess', { count: models.length }))
+  } catch (error) {
+    appStore.showError(getUpstreamModelsErrorMessage(error))
+  } finally {
+    upstreamModelsLoading.value = false
+  }
 }
 
 const addAntigravityModelMapping = () => {
@@ -3089,7 +3299,8 @@ const resetForm = () => {
   apiKeyValue.value = ''
   modelMappings.value = []
   modelRestrictionMode.value = 'whitelist'
-  allowedModels.value = [...claudeModels] // Default fill related models
+  allowedModels.value = []
+  upstreamModelsLoading.value = false
 
   antigravityModelRestrictionMode.value = 'mapping'
   antigravityWhitelistModels.value = []
@@ -3282,16 +3493,6 @@ const handleSubmit = async () => {
       api_key: upstreamApiKey.value.trim()
     }
 
-    // Antigravity 只使用映射模式
-    const antigravityModelMapping = buildModelMappingObject(
-      'mapping',
-      [],
-      antigravityModelMappings.value
-    )
-    if (antigravityModelMapping) {
-      credentials.model_mapping = antigravityModelMapping
-    }
-
     applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
 
     const extra = mixedScheduling.value ? { mixed_scheduling: true } : undefined
@@ -3321,7 +3522,7 @@ const handleSubmit = async () => {
   // Determine default base URL based on platform
   const defaultBaseUrl =
     form.platform === 'openai'
-      ? 'https://api.openai.com'
+      ? defaultOpenAIBaseURL
       : form.platform === 'gemini'
         ? 'https://generativelanguage.googleapis.com'
         : 'https://api.anthropic.com'
@@ -3335,12 +3536,8 @@ const handleSubmit = async () => {
     credentials.tier_id = geminiTierAIStudio.value
   }
 
-  // Add model mapping if configured（OpenAI 开启自动透传时不应用）
-  if (!isOpenAIModelRestrictionDisabled.value) {
-    const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
-    if (modelMapping) {
-      credentials.model_mapping = modelMapping
-    }
+  if (!applyPlatformModelMapping(form.platform, credentials)) {
+    return
   }
 
   // Add custom error codes if enabled
@@ -3427,6 +3624,11 @@ const handleImportAccessToken = async (accessTokenInput: string) => {
   let successCount = 0
   let failedCount = 0
   const errors: string[] = []
+  const soraMappingResult = resolveModelMappingForPlatform('sora')
+  if (!soraMappingResult.valid) {
+    oauthClient.loading.value = false
+    return
+  }
 
   try {
     for (let i = 0; i < accessTokens.length; i++) {
@@ -3434,6 +3636,7 @@ const handleImportAccessToken = async (accessTokenInput: string) => {
         const credentials: Record<string, unknown> = {
           access_token: accessTokens[i],
         }
+        applyResolvedModelMapping(credentials, soraMappingResult.mapping)
         const soraExtra = buildSoraExtra()
 
         const accountName = accessTokens.length > 1 ? `${form.name} #${i + 1}` : form.name
@@ -3493,6 +3696,9 @@ const createAccountAndFinish = async (
   credentials: Record<string, unknown>,
   extra?: Record<string, unknown>
 ) => {
+  if (!applyPlatformModelMapping(platform, credentials)) {
+    return
+  }
   if (!applyTempUnschedConfig(credentials)) {
     return
   }
@@ -3542,6 +3748,16 @@ const handleOpenAIExchange = async (authCode: string) => {
     const extra = buildOpenAIExtra(oauthExtra)
     const shouldCreateOpenAI = form.platform === 'openai'
     const shouldCreateSora = form.platform === 'sora'
+    const openaiMappingResult = shouldCreateOpenAI
+      ? resolveModelMappingForPlatform('openai')
+      : { valid: true, mapping: null }
+    const soraMappingResult = shouldCreateSora
+      ? resolveModelMappingForPlatform('sora')
+      : { valid: true, mapping: null }
+
+    if (!openaiMappingResult.valid || !soraMappingResult.valid) {
+      return
+    }
 
     // 应用临时不可调度配置
     if (!applyTempUnschedConfig(credentials)) {
@@ -3551,6 +3767,7 @@ const handleOpenAIExchange = async (authCode: string) => {
     let openaiAccountId: string | number | undefined
 
     if (shouldCreateOpenAI) {
+      applyResolvedModelMapping(credentials, openaiMappingResult.mapping)
       const openaiAccount = await adminAPI.accounts.create({
         name: form.name,
         notes: form.notes,
@@ -3577,6 +3794,7 @@ const handleOpenAIExchange = async (authCode: string) => {
         client_id: credentials.client_id,
         expires_at: credentials.expires_at
       }
+      applyResolvedModelMapping(soraCredentials, soraMappingResult.mapping)
 
       const soraName = shouldCreateOpenAI ? `${form.name} (Sora)` : form.name
       const soraExtra = buildSoraExtra(shouldCreateOpenAI ? extra : oauthExtra, openaiAccountId)
@@ -3632,6 +3850,17 @@ const handleOpenAIValidateRT = async (refreshTokenInput: string) => {
   const errors: string[] = []
   const shouldCreateOpenAI = form.platform === 'openai'
   const shouldCreateSora = form.platform === 'sora'
+  const openaiMappingResult = shouldCreateOpenAI
+    ? resolveModelMappingForPlatform('openai')
+    : { valid: true, mapping: null }
+  const soraMappingResult = shouldCreateSora
+    ? resolveModelMappingForPlatform('sora')
+    : { valid: true, mapping: null }
+
+  if (!openaiMappingResult.valid || !soraMappingResult.valid) {
+    oauthClient.loading.value = false
+    return
+  }
 
   try {
     for (let i = 0; i < refreshTokens.length; i++) {
@@ -3657,6 +3886,7 @@ const handleOpenAIValidateRT = async (refreshTokenInput: string) => {
         let openaiAccountId: string | number | undefined
 
         if (shouldCreateOpenAI) {
+          applyResolvedModelMapping(credentials, openaiMappingResult.mapping)
           const openaiAccount = await adminAPI.accounts.create({
             name: accountName,
             notes: form.notes,
@@ -3682,6 +3912,7 @@ const handleOpenAIValidateRT = async (refreshTokenInput: string) => {
             client_id: credentials.client_id,
             expires_at: credentials.expires_at
           }
+          applyResolvedModelMapping(soraCredentials, soraMappingResult.mapping)
           const soraName = shouldCreateOpenAI ? `${accountName} (Sora)` : accountName
           const soraExtra = buildSoraExtra(shouldCreateOpenAI ? extra : oauthExtra, openaiAccountId)
           await adminAPI.accounts.create({
@@ -3754,6 +3985,11 @@ const handleSoraValidateST = async (sessionTokenInput: string) => {
   let successCount = 0
   let failedCount = 0
   const errors: string[] = []
+  const soraMappingResult = resolveModelMappingForPlatform('sora')
+  if (!soraMappingResult.valid) {
+    oauthClient.loading.value = false
+    return
+  }
 
   try {
     for (let i = 0; i < sessionTokens.length; i++) {
@@ -3768,6 +4004,7 @@ const handleSoraValidateST = async (sessionTokenInput: string) => {
 
         const credentials = oauthClient.buildCredentials(tokenInfo)
         credentials.session_token = sessionTokens[i]
+        applyResolvedModelMapping(credentials, soraMappingResult.mapping)
         const oauthExtra = oauthClient.buildExtraInfo(tokenInfo) as Record<string, unknown> | undefined
         const soraExtra = buildSoraExtra(oauthExtra)
 
@@ -3839,6 +4076,11 @@ const handleAntigravityValidateRT = async (refreshTokenInput: string) => {
   let successCount = 0
   let failedCount = 0
   const errors: string[] = []
+  const antigravityMappingResult = resolveModelMappingForPlatform('antigravity')
+  if (!antigravityMappingResult.valid) {
+    antigravityOAuth.loading.value = false
+    return
+  }
 
   try {
     for (let i = 0; i < refreshTokens.length; i++) {
@@ -3855,6 +4097,7 @@ const handleAntigravityValidateRT = async (refreshTokenInput: string) => {
         }
 
         const credentials = antigravityOAuth.buildCredentials(tokenInfo)
+        applyResolvedModelMapping(credentials, antigravityMappingResult.mapping)
         
         // Generate account name with index for batch
         const accountName = refreshTokens.length > 1 ? `${form.name} #${i + 1}` : form.name
@@ -3967,21 +4210,12 @@ const handleAntigravityExchange = async (authCode: string) => {
       state: stateToUse,
       proxyId: form.proxy_id
     })
-		if (!tokenInfo) return
+    if (!tokenInfo) return
 
-		const credentials = antigravityOAuth.buildCredentials(tokenInfo)
-		applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
-		// Antigravity 只使用映射模式
-		const antigravityModelMapping = buildModelMappingObject(
-			'mapping',
-			[],
-			antigravityModelMappings.value
-		)
-		if (antigravityModelMapping) {
-			credentials.model_mapping = antigravityModelMapping
-		}
-		const extra = mixedScheduling.value ? { mixed_scheduling: true } : undefined
-		await createAccountAndFinish('antigravity', 'oauth', credentials, extra)
+    const credentials = antigravityOAuth.buildCredentials(tokenInfo)
+    applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
+    const extra = mixedScheduling.value ? { mixed_scheduling: true } : undefined
+    await createAccountAndFinish('antigravity', 'oauth', credentials, extra)
   } catch (error: any) {
     antigravityOAuth.error.value = error.response?.data?.detail || t('admin.accounts.oauth.authFailed')
     appStore.showError(antigravityOAuth.error.value)
@@ -4104,6 +4338,10 @@ const handleCookieAuth = async (sessionKey: string) => {
       addMethod.value === 'oauth'
         ? '/admin/accounts/cookie-auth'
         : '/admin/accounts/setup-token-cookie-auth'
+    const modelMappingResult = resolveModelMappingForPlatform(form.platform)
+    if (!modelMappingResult.valid) {
+      return
+    }
 
     let successCount = 0
     let failedCount = 0
@@ -4161,6 +4399,7 @@ const handleCookieAuth = async (sessionKey: string) => {
         const accountName = keys.length > 1 ? `${form.name} #${i + 1}` : form.name
 
         const credentials: Record<string, unknown> = { ...tokenInfo }
+        applyResolvedModelMapping(credentials, modelMappingResult.mapping)
         applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
         if (tempUnschedEnabled.value) {
           credentials.temp_unschedulable_enabled = true
